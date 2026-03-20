@@ -1,15 +1,13 @@
 """
 悬浮倒计时器 - 细长条透明版
-单行显示，高透明度，始终置顶
-双击关闭
+从15分02秒开始，无声音，最后10秒变红
 """
 
 import tkinter as tk
 import time
 import threading
-import winsound
 
-TOTAL_SECONDS = 15 * 60
+TOTAL_SECONDS = 15 * 60 + 2  # 15分02秒
 
 class FloatingTimer:
     def __init__(self):
@@ -21,12 +19,12 @@ class FloatingTimer:
         self.root.title("")
         self.root.overrideredirect(True)
         self.root.attributes("-topmost", True)
-        self.root.attributes("-alpha", 0.55)        # 更透明
+        self.root.attributes("-alpha", 0.55)
         self.root.configure(bg="#000000")
         self.root.attributes("-transparentcolor", "#000000")
 
         sw = self.root.winfo_screenwidth()
-        self.root.geometry(f"168x32+{sw - 184}+14")  # 细长条
+        self.root.geometry(f"168x32+{sw - 184}+14")
 
         self._drag_x = 0
         self._drag_y = 0
@@ -41,8 +39,8 @@ class FloatingTimer:
         )
         self.frame.pack(fill="both", expand=True)
 
-        # 时间
-        self.var_time = tk.StringVar(value="15:00")
+        # 时间数字 —— 可拖动、双击关闭
+        self.var_time = tk.StringVar(value="15:02")
         self.label_time = tk.Label(
             self.frame, textvariable=self.var_time,
             bg="#0d0d14", fg="#e8c060",
@@ -50,33 +48,33 @@ class FloatingTimer:
             padx=8, pady=0
         )
         self.label_time.pack(side="left")
+        self.label_time.bind("<ButtonPress-1>",   self._on_drag_start)
+        self.label_time.bind("<B1-Motion>",       self._on_drag_move)
+        self.label_time.bind("<Double-Button-1>", lambda e: self._quit())
+
+        self.frame.bind("<ButtonPress-1>",   self._on_drag_start)
+        self.frame.bind("<B1-Motion>",       self._on_drag_move)
+        self.frame.bind("<Double-Button-1>", lambda e: self._quit())
 
         # 暂停按钮
         self.btn_pause = tk.Label(
             self.frame, text="⏸",
-            bg="#0d0d14", fg="#383850",
-            font=("Arial", 11), padx=4,
+            bg="#0d0d14", fg="#555570",
+            font=("Arial", 12), padx=5,
             cursor="hand2"
         )
         self.btn_pause.pack(side="left")
-        self.btn_pause.bind("<Button-1>", lambda e: self._toggle_pause())
+        self.btn_pause.bind("<ButtonRelease-1>", lambda e: self._toggle_pause())
 
         # 重置按钮
-        btn_reset = tk.Label(
+        self.btn_reset = tk.Label(
             self.frame, text="↺",
-            bg="#0d0d14", fg="#383850",
-            font=("Arial", 11), padx=4,
+            bg="#0d0d14", fg="#555570",
+            font=("Arial", 12), padx=5,
             cursor="hand2"
         )
-        btn_reset.pack(side="left")
-        btn_reset.bind("<Button-1>", lambda e: self._reset())
-
-        # 绑定拖动 + 双击关闭到所有控件
-        for w in (self.root, self.frame, self.label_time,
-                  self.btn_pause, btn_reset):
-            w.bind("<ButtonPress-1>",   self._on_drag_start)
-            w.bind("<B1-Motion>",       self._on_drag_move)
-            w.bind("<Double-Button-1>", lambda e: self._quit())
+        self.btn_reset.pack(side="left")
+        self.btn_reset.bind("<ButtonRelease-1>", lambda e: self._reset())
 
         # 启动倒计时
         self.thread = threading.Thread(target=self._tick_loop, daemon=True)
@@ -98,35 +96,14 @@ class FloatingTimer:
         m = self.remaining // 60
         s = self.remaining % 60
         self.var_time.set(f"{m:02d}:{s:02d}")
+        # 最后10秒变红，其余金色
         self.label_time.config(
-            fg="#e05050" if self.remaining <= 180 else "#e8c060"
+            fg="#e05050" if self.remaining <= 10 else "#e8c060"
         )
-        # 最后10秒：每秒短促一声 嘟~
-        if 1 <= self.remaining <= 10:
-            threading.Thread(
-                target=lambda: winsound.Beep(880, 80),
-                daemon=True
-            ).start()
 
     def _on_finish(self):
         self.var_time.set("00:00")
         self.label_time.config(fg="#e05050")
-        def beep():
-            for _ in range(3):
-                winsound.Beep(1000, 300)
-                time.sleep(0.2)
-        threading.Thread(target=beep, daemon=True).start()
-        self._flash(6)
-
-    def _flash(self, count):
-        if count <= 0:
-            self.frame.config(bg="#0d0d14")
-            self.label_time.config(bg="#0d0d14")
-            return
-        color = "#3a0808" if count % 2 == 0 else "#0d0d14"
-        self.frame.config(bg=color)
-        self.label_time.config(bg=color)
-        self.root.after(350, lambda: self._flash(count - 1))
 
     def _toggle_pause(self):
         self.paused = not self.paused
@@ -135,7 +112,7 @@ class FloatingTimer:
     def _reset(self):
         self.paused = False
         self.remaining = TOTAL_SECONDS
-        self.var_time.set("15:00")
+        self.var_time.set("15:02")
         self.label_time.config(fg="#e8c060")
         self.btn_pause.config(text="⏸")
 
